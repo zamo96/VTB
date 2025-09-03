@@ -1,0 +1,5 @@
+{
+  "risk": { "score": 70, "severity": "critical", "drivers": ["R_SEQ_SCAN_BIG_TABLE","R_SORT_SPILL"] },
+  "recommendations": [],
+  "explain_md": "demo"
+}

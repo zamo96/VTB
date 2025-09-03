@@ -1,0 +1,11 @@
+{
+  "features": [
+    { "nodeId": 10, "kind": "seq_scan_big_table", "relation":"sales.order_items", "estRows":48000000, "selectivity":0.03 },
+    { "nodeId": 4,  "kind": "sort_spill_risk", "memEstMB":180, "workMemMB":64 }
+  ],
+  "statsUsed": [
+    { "table":"sales.order_items", "columns":["category"], "n_distinct":-0.2 }
+  ],
+  "dbSettings": { "work_memMB": 64 },
+  "sqlText": "SELECT ... ORDER BY s DESC LIMIT 100"
+}
