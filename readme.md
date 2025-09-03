@@ -1,1 +1,0 @@
-VTB Posgresql Analyzer
