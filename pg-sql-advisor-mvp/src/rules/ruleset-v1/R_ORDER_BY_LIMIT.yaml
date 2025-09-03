@@ -1,1 +1,19 @@
-# R_ORDER_BY_LIMIT.yaml (MVP rule stub)
+id: R_ORDER_BY_LIMIT
+type: index
+title: "Покрывающий индекс для ORDER BY + LIMIT на {table}"
+match:
+  feature: order_by_limit_no_covering_index
+action:
+  ddl_template: "CREATE INDEX CONCURRENTLY {idx} ON {table}({order_by_cols}) INCLUDE({include_cols});"
+  context:
+    order_by_cols_from_feature: orderByCols   # [{name,dir}] или ["col DESC", "id"]
+    include_cols_from_feature: includeCols    # дополнительные колонки для покрытия
+    include_cols_fallback: ["id"]
+    idx_template: "idx_{table}_{order_by_cols_flat}"
+risk:
+  base: 28
+effort: low
+confidence: high
+expected_gain:
+  kind: cost_delta
+  source: estimate

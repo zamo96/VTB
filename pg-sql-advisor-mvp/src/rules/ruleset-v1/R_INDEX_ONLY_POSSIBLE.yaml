@@ -1,0 +1,19 @@
+id: R_INDEX_ONLY_POSSIBLE
+type: index
+title: "Покрывающий индекс для Index-Only Scan на {table}"
+match:
+  feature: index_only_possible
+action:
+  ddl_template: "CREATE INDEX CONCURRENTLY {idx} ON {table}({cols}) INCLUDE({include_cols});"
+  context:
+    cols_from_feature: filterCols            # ведущие колонки (условия/сорт)
+    include_cols_from_feature: includeCols   # дополнительные колонки для покрытия
+    include_cols_fallback: []
+    idx_template: "idx_{table}_{cols_flat}_cover"
+risk:
+  base: 22
+effort: low
+confidence: medium
+expected_gain:
+  kind: io_reduction
+  source: estimate

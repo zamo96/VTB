@@ -1,0 +1,19 @@
+id: R_FK_MISSING_INDEX
+type: index
+title: "Индекс на внешний ключ {table}({cols})"
+match:
+  feature: fk_missing_index
+action:
+  ddl_template: "CREATE INDEX CONCURRENTLY {idx} ON {table}({cols});"
+  context:
+    table_from_feature: relation      # child таблица
+    col_from_feature: fkCol           # колонка FK
+    col_fallback: "parent_id"
+    idx_template: "idx_{table}_{cols_flat}_fk"
+risk:
+  base: 30
+effort: low
+confidence: high
+expected_gain:
+  kind: cost_delta
+  source: estimate

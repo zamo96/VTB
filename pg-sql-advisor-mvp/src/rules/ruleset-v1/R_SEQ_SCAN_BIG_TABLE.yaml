@@ -1,1 +1,19 @@
-# R_SEQ_SCAN_BIG_TABLE.yaml (MVP rule stub)
+id: R_SEQ_SCAN_BIG_TABLE
+type: index
+title: "Индекс для селективного фильтра на {table}({cols})"
+match:
+  feature: seq_scan_big_table
+  selectivity_lt: 0.10
+action:
+  ddl_template: "CREATE INDEX CONCURRENTLY {idx} ON {table}({cols});"
+  context:
+    cols_from_feature: filterCols     # ожидается список колонок в предикате; если нет — fallback
+    cols_fallback: ["created_at"]     # простая эвристика на MVP
+    idx_template: "idx_{table}_{cols_flat}"
+risk:
+  base: 40
+effort: low
+confidence: high
+expected_gain:
+  kind: cost_delta
+  source: estimate

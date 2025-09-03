@@ -1,0 +1,20 @@
+id: R_LIKE_TRGM
+type: index
+title: "GIN + pg_trgm для LIKE/ILIKE на {table}({cols})"
+match:
+  feature: like_leading_wildcard
+action:
+  ddl_template: "CREATE INDEX CONCURRENTLY {idx} ON {table} USING gin({cols} gin_trgm_ops);"
+  pre_sql:
+    - "CREATE EXTENSION IF NOT EXISTS pg_trgm"
+  context:
+    col_from_feature: col
+    col_fallback: "email"
+    idx_template: "idx_{table}_{cols_flat}_trgm"
+risk:
+  base: 26
+effort: low
+confidence: high
+expected_gain:
+  kind: cost_delta
+  source: estimate

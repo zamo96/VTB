@@ -1,13 +1,13 @@
-id: R_SORT_SPILL
+id: R_HASHAGG_SPILL
 type: db_setting
-title: "Поднять work_mem на сессию до 128MB (Sort)"
+title: "Поднять work_mem на сессию до 128MB (HashAgg)"
 match:
-  feature: sort_spill_risk
+  feature: hashagg_spill_risk
   mem_gt_workmem: true
 action:
   alter: "SET LOCAL work_mem = '128MB';"
 risk:
-  base: 30
+  base: 24
 effort: low
 confidence: medium
 expected_gain:
