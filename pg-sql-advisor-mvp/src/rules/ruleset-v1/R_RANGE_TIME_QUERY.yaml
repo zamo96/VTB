@@ -1,0 +1,14 @@
+id: R_RANGE_TIME_QUERY
+type: index
+title: "Диапазон по времени: добавить индекс по времени (возможен составной)"
+match:
+  feature: range_time_query
+action:
+  ddl_template: "CREATE INDEX CONCURRENTLY idx_{table_safe}_{col}_range ON {table}(\"{timeCol}\");"
+expected_gain:
+  kind: cost_delta
+  source: estimate
+risk:
+  base: 15
+effort: low
+confidence: medium

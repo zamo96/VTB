@@ -1,0 +1,15 @@
+id: R_CAST_PREVENTS_INDEX
+type: sql_rewrite
+title: "Функция на колонке мешает индексу: переписать фильтр"
+match:
+  feature: cast_prevents_index
+action:
+  rewrite_sql_hint: "Переписать WHERE без to_char(): \"{col}\" >= DATE '{fromDate}' AND \"{col}\" < DATE '{toDate_next}'"
+  ddl_template: "CREATE INDEX CONCURRENTLY idx_{table_safe}_{col}_ts ON {table}(\"{col}\");"
+expected_gain:
+  kind: index_usage_enable
+  source: heuristic
+risk:
+  base: 25
+effort: low
+confidence: high
