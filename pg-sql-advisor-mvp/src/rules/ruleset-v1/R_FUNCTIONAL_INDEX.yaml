@@ -1,0 +1,18 @@
+id: R_FUNCTIONAL_INDEX
+type: index
+title: "Функциональный индекс по выражению на {table}"
+match:
+  feature: functional_index_candidate
+action:
+  ddl_template: "CREATE INDEX CONCURRENTLY {idx} ON {table}(({col}));"
+  context:
+    col_from_feature: expr            # ожидаем 'lower(email)' или 'date(created_at)'
+    col_fallback: "lower(email)"
+    idx_template: "idx_{table}_{cols_flat}_fn"
+risk:
+  base: 24
+effort: low
+confidence: medium
+expected_gain:
+  kind: cost_delta
+  source: estimate

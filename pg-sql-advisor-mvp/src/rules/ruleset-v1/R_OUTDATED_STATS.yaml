@@ -1,1 +1,16 @@
-# R_OUTDATED_STATS.yaml (MVP rule stub)
+id: R_OUTDATED_STATS
+type: stats
+title: "Обновить статистику ANALYZE для {table}"
+match:
+  feature: outdated_stats
+action:
+  ddl_template: "ANALYZE {table};"
+  context:
+    table_from_feature: relation
+risk:
+  base: 18
+effort: low
+confidence: high
+expected_gain:
+  kind: plan_quality
+  source: heuristic

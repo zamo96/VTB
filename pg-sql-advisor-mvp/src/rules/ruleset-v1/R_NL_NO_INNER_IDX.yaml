@@ -1,0 +1,19 @@
+id: R_NL_NO_INNER_IDX
+type: index
+title: "Индекс на внутреннюю сторону Nested Loop {table}({cols})"
+match:
+  feature: nested_loop_no_inner_index
+action:
+  ddl_template: "CREATE INDEX CONCURRENTLY {idx} ON {table}({cols});"
+  context:
+    table_from_feature: innerRelation     # имя внутренней таблицы
+    cols_from_feature: innerJoinCols      # список колонок джоина на внутренней стороне
+    cols_fallback: ["order_id"]
+    idx_template: "idx_{table}_{cols_flat}_inner"
+risk:
+  base: 27
+effort: low
+confidence: medium
+expected_gain:
+  kind: cost_delta
+  source: estimate
