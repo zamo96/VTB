@@ -1,67 +1,170 @@
 # src/db/pg.py
-import os, re, time
-from typing import Any, Dict, Optional
-from psycopg_pool import ConnectionPool
-from psycopg.rows import dict_row
+import os
+import json
+import pathlib
+from typing import Dict, Tuple
+from dotenv import load_dotenv
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://aldarbazarov:password@localhost:5432/vtb")
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
 
-# пул синхронный; будем вызывать из async через run_in_threadpool
-pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=5, kwargs={"autocommit": True})
+try:
+    import psycopg  # psycopg3
+    from psycopg.rows import dict_row
+    _IS_PSYCOPG3 = True
+except Exception:
+    import psycopg2 as psycopg
+    from psycopg2.extras import RealDictCursor
+    _IS_PSYCOPG3 = False
 
-_SAFE_SEARCH_PATH = re.compile(r"^[a-zA-Z0-9_., ]+$")
 
-def _set_ctx(cur, search_path: Optional[str], timeout_ms: int):
-    if timeout_ms:
-        cur.execute(f"SET LOCAL statement_timeout = {int(timeout_ms)}")
-    if search_path:
-        if not _SAFE_SEARCH_PATH.match(search_path):
-            raise ValueError("invalid search_path")
-        cur.execute(f"SET LOCAL search_path = {search_path}")
+PG_ENV_KEYS = ("PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE", "PGSERVICE")
 
-def run_sql_sync(sql: str,
-                 params: Optional[Dict[str, Any]] = None,
-                 *,
-                 timeout_ms: int = 5000,
-                 search_path: Optional[str] = None,
-                 allow_write: bool = False) -> Dict[str, Any]:
-    s = sql.strip()
-    if not allow_write:
-        low = s.lower()
-        if not (low.startswith("select") or low.startswith("with")):
-            raise ValueError("Only SELECT/WITH allowed (set allow_write=true to override).")
-    t0 = time.perf_counter()
-    with pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
-        _set_ctx(cur, search_path, timeout_ms)
-        cur.execute(s, params or None)
-        rows = cur.fetchall() if cur.description else []
-    return {"rows": rows, "row_count": len(rows), "duration_ms": round((time.perf_counter()-t0)*1000, 2)}
 
-def explain_sql_sync(sql: str,
-                     *,
-                     analyze: bool = False,
-                     buffers: bool = True,
-                     verbose: bool = False,
-                     settings: bool = False,
-                     timeout_ms: int = 5000,
-                     search_path: Optional[str] = None,
-                     fmt: str = "json") -> Dict[str, Any]:
-    opts = [
-        f"ANALYZE {'true' if analyze else 'false'}",
-        "COSTS true",
-        f"BUFFERS {'true' if buffers else 'false'}",
-        f"VERBOSE {'true' if verbose else 'false'}",
-        f"SETTINGS {'true' if settings else 'false'}",
-    ]
-    if fmt.lower() == "json":
-        opts.append("FORMAT JSON")
-    q = f"EXPLAIN ({', '.join(opts)}) {sql.strip()}"
-    with pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
-        _set_ctx(cur, search_path, timeout_ms)
-        cur.execute(q)
-        if fmt.lower() == "json":
-            row = cur.fetchone() or {}
-            plan = list(row.values())[0] if row else None  # значение колонки "QUERY PLAN"
-            return {"plan": plan}
-        lines = [r["QUERY PLAN"] for r in cur.fetchall()]
-        return {"plan_text": "\n".join(lines)}
+def _clear_pg_env():
+    """Убираем влияние libpq окружения на коннект."""
+    cleared = {}
+    for k in PG_ENV_KEYS:
+        if k in os.environ:
+            cleared[k] = os.environ.pop(k)
+    return cleared  # вернём на всякий случай для /debug
+
+
+def _pg_conn_params() -> Dict:
+    return dict(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        dbname=os.getenv("DB_NAME", "pagila"),
+        user=os.getenv("DB_USER", "postgres"),
+        password=os.getenv("DB_PASSWORD", "u2@KAXU5"),
+    )
+
+
+def _conn_source() -> Tuple[str, Dict]:
+    """Вернём строку-источник (DATABASE_URL|params) и сами параметры (без пароля)."""
+    url = os.getenv("DATABASE_URL")
+    if url:
+        safe = url
+        try:
+            # зазвездить пароль, если есть
+            before_at, after_at = url.split("@", 1)
+            if "://" in before_at and ":" in before_at:
+                proto, rest = before_at.split("://", 1)
+                user, pwd = rest.split(":", 1)
+                pwd_masked = "****"
+                safe = f"{proto}://{user}:{pwd_masked}@{after_at}"
+        except Exception:
+            pass
+        return ("DATABASE_URL", {"url": safe})
+    p = _pg_conn_params().copy()
+    p["password"] = "****" if p.get("password") else ""
+    return ("params", p)
+
+
+def get_conn_sync():
+    cleared_env = _clear_pg_env()  # очищаем PG* из окружения
+    source, src_val = _conn_source()
+    # Можно включить отладочный принт:
+    print(f"[db] connecting via {source}: {src_val}; cleared_env={list(cleared_env.keys())}")
+
+    url = os.getenv("DATABASE_URL")
+    if url:
+        if _IS_PSYCOPG3:
+            return psycopg.connect(url, autocommit=True, row_factory=dict_row)
+        conn = psycopg.connect(url)
+        conn.autocommit = True
+        return conn
+
+    params = _pg_conn_params()
+    if _IS_PSYCOPG3:
+        return psycopg.connect(**params, autocommit=True, row_factory=dict_row)
+    conn = psycopg.connect(**params)
+    conn.autocommit = True
+    return conn
+
+
+def run_sql_sync(sql: str, params=None, *, timeout_ms=5000, search_path="public", allow_write=False):
+    conn = get_conn_sync()
+    if _IS_PSYCOPG3:
+        with conn, conn.cursor() as cur:
+            if search_path:
+                cur.execute(f"SET search_path TO {search_path}")
+            if timeout_ms:
+                cur.execute(f"SET statement_timeout = {int(timeout_ms)}")
+            cur.execute(sql, params or ())
+            if cur.description:
+                return cur.fetchall()
+            return {"rowcount": cur.rowcount}
+    else:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if search_path:
+                    cur.execute(f"SET search_path TO {search_path}")
+                if timeout_ms:
+                    cur.execute(f"SET statement_timeout = {int(timeout_ms)}")
+                cur.execute(sql, params or ())
+                if cur.description:
+                    return cur.fetchall()
+                return {"rowcount": cur.rowcount}
+
+
+def explain_sql_sync(
+    sql: str,
+    *,
+    analyze: bool = False,
+    buffers: bool = True,
+    verbose: bool = False,
+    settings: bool = False,
+    timeout_ms: int = 5000,
+    search_path: str = "public",
+    fmt: str = "json",
+):
+    fmt_l = fmt.lower()
+    options = []
+    if analyze: options.append("ANALYZE true")
+    if buffers: options.append("BUFFERS true")
+    if verbose: options.append("VERBOSE true")
+    if settings: options.append("SETTINGS true")
+    options.append(f"FORMAT {fmt_l.upper()}")
+    q = f"EXPLAIN ({', '.join(options)}) {sql}"
+
+    conn = get_conn_sync()
+    if _IS_PSYCOPG3:
+        with conn, conn.cursor() as cur:
+            if search_path:
+                cur.execute(f"SET search_path TO {search_path}")
+            if timeout_ms:
+                cur.execute(f"SET statement_timeout = {int(timeout_ms)}")
+            cur.execute(q)
+            if fmt_l == "json":
+                row = cur.fetchone()
+                val = (row.get("QUERY PLAN") if isinstance(row, dict) else row[0])
+                if isinstance(val, str):
+                    try: val = json.loads(val)
+                    except Exception: pass
+                return {"plan": val}
+            else:
+                rows = cur.fetchall()
+                return {"plan_text": "\n".join([
+                    (r.get("QUERY PLAN") if isinstance(r, dict) else r[0]) for r in rows
+                ])}
+    else:
+        with conn:
+            with conn.cursor() as cur:
+                if search_path:
+                    cur.execute(f"SET search_path TO {search_path}")
+                if timeout_ms:
+                    cur.execute(f"SET statement_timeout = {int(timeout_ms)}")
+                cur.execute(q)
+                if fmt_l == "json":
+                    row = cur.fetchone()
+                    val = row.get("QUERY PLAN") if isinstance(row, dict) else row[0]
+                    if isinstance(val, str):
+                        try: val = json.loads(val)
+                        except Exception: pass
+                    return {"plan": val}
+                else:
+                    rows = cur.fetchall()
+                    return {"plan_text": "\n".join([
+                        (r.get("QUERY PLAN") if isinstance(r, dict) else r[0]) for r in rows
+                    ])}

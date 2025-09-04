@@ -1,67 +1,75 @@
-# src/advisor/rules_loader.py
-import os, yaml
-from typing import List, Dict, Any
-from .feature_catalog import is_valid_feature_kind
+import os
+from pathlib import Path
+from typing import Any, Dict, List
+import yaml
 
-ALLOWED_TYPES = {"index", "db_setting", "sql_rewrite", "stats"}
+from src.advisor.feature_catalog import is_valid_feature_kind
 
-def _rule_is_actionable(rule: Dict[str, Any]) -> bool:
-    t = (rule.get("type") or "").strip()
-    act = rule.get("action") or {}
+def _candidate_dirs() -> List[Path]:
+    # 1) ENV
+    env_dir = os.getenv("RULES_DIR")
+    candidates = []
+    if env_dir:
+        candidates.append(Path(env_dir))
 
-    if t == "index":
-        return bool(act.get("ddl_template"))
-    if t == "db_setting":
-        return bool(act.get("alter"))
-    if t == "sql_rewrite":
-        # допускаем rewrite_sql_hint или ddl_template (если хочешь DDL)
-        return bool(act.get("rewrite_sql_hint") or act.get("ddl_template"))
-    if t == "stats":
-        return bool(act.get("ddl_template") or act.get("alter"))
-    return False
+    # 2) рядом с модулем
+    here = Path(__file__).resolve().parent
+    candidates += [
+        here / "rules" / "ruleset-v1",
+        here.parent / "rules" / "ruleset-v1",  # src/advisor/.. → src/rules/ruleset-v1
+    ]
+
+    # 3) относительно CWD (когда запускаем uvicorn из корня)
+    cwd = Path.cwd()
+    candidates += [
+        cwd / "src" / "rules" / "ruleset-v1",
+        cwd / "rules" / "ruleset-v1",
+    ]
+
+    # Уникализируем и возвращаем
+    seen = set()
+    uniq = []
+    for p in candidates:
+        if p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    return uniq
 
 def load_rules(dir_path: str | None = None) -> List[Dict[str, Any]]:
-    dir_path = dir_path or os.environ.get("RULES_DIR", "src/rules/ruleset-v1")
-    collected: List[Dict[str, Any]] = []
-    if not os.path.isdir(dir_path):
-        print(f"[rules_loader] WARNING: rules dir not found: {dir_path}")
-        return collected
+    paths = [Path(dir_path)] if dir_path else _candidate_dirs()
 
-    for name in sorted(os.listdir(dir_path)):
-        if not (name.endswith(".yaml") or name.endswith(".yml")):
-            continue
-        path = os.path.join(dir_path, name)
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-        except Exception as e:
-            print(f"[rules_loader] skip {name}: read error: {e}")
-            continue
+    rules: List[Dict[str, Any]] = []
+    chosen: Path | None = None
 
-        data.setdefault("id", os.path.splitext(name)[0])
+    for p in paths:
+        if p and p.exists() and p.is_dir():
+            yaml_files = sorted(p.glob("*.yaml"))
+            if yaml_files:
+                chosen = p
+                for yf in yaml_files:
+                    try:
+                        with open(yf, "r", encoding="utf-8") as f:
+                            data = yaml.safe_load(f) or {}
+                    except Exception as e:
+                        print(f"[rules_loader] skip {yf.name}: YAML error={e}")
+                        continue
 
-        # 1) обязательный match.feature
-        match = data.get("match") or {}
-        fk = (match.get("feature") or "").strip()
-        if not fk:
-            print(f"[rules_loader] skip {name}: no match.feature")
-            continue
-        if not is_valid_feature_kind(fk):
-            print(f"[rules_loader] skip {name}: unknown feature '{fk}'")
-            continue
+                    # валидация feature.kind (минимум)
+                    match = data.get("match") or {}
+                    fk = match.get("feature")
+                    if fk and not is_valid_feature_kind(fk):
+                        print(f"[rules_loader] skip {yf.name}: unknown feature '{fk}'")
+                        continue
 
-        # 2) валидный type
-        t = (data.get("type") or "").strip()
-        if t not in ALLOWED_TYPES:
-            print(f"[rules_loader] skip {name}: invalid type '{t}'")
-            continue
+                    # нормализация id
+                    rid = data.get("id") or yf.stem.upper()
+                    data["id"] = rid
+                    rules.append(data)
+                break
 
-        # 3) есть «действие»
-        if not _rule_is_actionable(data):
-            print(f"[rules_loader] skip {name}: rule not actionable (no ddl/alter/rewrite)")
-            continue
-
-        collected.append(data)
-
-    print(f"[rules_loader] loaded {len(collected)} rules from {dir_path}")
-    return collected
+    if not chosen:
+        print(f"[rules_loader] WARNING: rules dir not found in candidates: "
+              f"{[str(p) for p in paths]}")
+    else:
+        print(f"[rules_loader] loaded {len(rules)} rules from {chosen}")
+    return rules
