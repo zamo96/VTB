@@ -12,6 +12,8 @@ uvicorn = {extras = ["standard"], version = "^0.29"}
 pydantic = "^2.5"
 pyyaml = "^6.0"
 jinja2 = "^3.1"
+psycopg-pool = "^3.2.6"
+psycopg = "^3.2.9"
 
 [tool.poetry.group.dev.dependencies]
 

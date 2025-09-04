@@ -1,1 +1,15 @@
-# R_LIKE_LEADING_WILDCARD.yaml (MVP rule stub)
+id: R_LIKE_LEADING_WILDCARD
+type: sql_rewrite
+title: "LIKE с ведущим %: рассмотреть переписывание/индекс TRGM"
+match:
+  feature: like_leading_wildcard
+action:
+  rewrite_sql_hint: "Избегайте шаблона '%abc', используйте полнотекст/триграммы при необходимости"
+  ddl_template: "CREATE INDEX CONCURRENTLY idx_{table}_{cols_flat}_trgm ON {table} USING gin ({cols})"
+expected_gain:
+  kind: index_usage_enable
+  source: heuristic
+risk:
+  base: 10
+effort: low
+confidence: medium
