@@ -1,0 +1,239 @@
+/* 
+ * normalize.css v8.0.1
+ * Сброс стилей для современных приложений на React + Ant Design
+ * Расширен для поддержки focus-состояний, кириллицы, box-sizing и т.д.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #0f172a;
+  color: #e2e8f0;
+  line-height: 1.6;
+}
+
+:where(abbr[title]),
+:where(b),
+:where(strong),
+:where(code),
+:where(kbd),
+:where(samp),
+:where(small),
+:where(sub),
+:where(sup) {
+  font-weight: inherit;
+  font-style: inherit;
+  text-decoration: inherit;
+  font-variant: inherit;
+  font-feature-settings: inherit;
+  font-variation-settings: inherit;
+}
+
+b,
+strong {
+  font-weight: bold;
+}
+
+i,
+em {
+  font-style: italic;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+fieldset,
+legend,
+form,
+label {
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  background-color: transparent;
+}
+
+a:focus,
+button:focus,
+input:focus,
+textarea:focus,
+[tabindex]:focus {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+a[href^='tel'],
+a[href^='sms'] {
+  text-decoration: none;
+  pointer-events: auto;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  border-radius: 0;
+  border: 1px solid #334155;
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input[type='search'] {
+  outline-offset: -2px;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+button,
+input,
+optgroup,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 0;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}
+
+pre,
+code,
+kbd,
+samp {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 1em;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background-color: #1e293b;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #334155;
+  overflow-x: auto;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('https://rsms.me/inter/font-files/Inter.var.woff2?v=4.0') format('woff2');
+  font-weight: 100 900;
+  font-stretch: 100%;
+  font-display: swap;
+}
+
+:root {
+  --color-primary: 16 185 129;
+  /* emerald-500 */
+  --color-primary-hover: 6 114 80;
+  --color-bg: 15 23 42;
+  /* slate-900 */
+  --color-text: 248 250 252;
+  /* slate-50 */
+  --color-border: 71 85 105;
+  /* slate-600 */
+}
+
+.glass-effect {
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 0.75rem;
+}
+
+/* ANTD */
+.ant-menu a {
+  outline: none !important;
+}
+
+.ant-menu a:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}

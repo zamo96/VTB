@@ -1,0 +1,88 @@
+{
+  "name": "QueryAnalysis",
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "SQL запрос для анализа"
+    },
+    "estimated_cost": {
+      "type": "number",
+      "description": "Оценочная стоимость выполнения"
+    },
+    "execution_time": {
+      "type": "number",
+      "description": "Предполагаемое время выполнения в миллисекундах"
+    },
+    "complexity_score": {
+      "type": "integer",
+      "description": "Оценка сложности от 1 до 10"
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["critical", "warning", "info", "optimization"]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    "performance_insights": {
+      "type": "object",
+      "properties": {
+        "scan_operations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "index_usage": {
+          "type": "string"
+        },
+        "join_operations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "potential_bottlenecks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "optimization_suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "suggestion": {
+            "type": "string"
+          },
+          "optimized_query": {
+            "type": "string"
+          },
+          "expected_improvement": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": ["query"]
+}
