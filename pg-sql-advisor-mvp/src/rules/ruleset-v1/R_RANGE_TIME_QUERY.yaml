@@ -4,7 +4,7 @@ title: "Диапазон по времени: добавить индекс по
 match:
   feature: range_time_query
 action:
-  ddl_template: "CREATE INDEX CONCURRENTLY idx_{table_safe}_{col}_range ON {table}(\"{timeCol}\");"
+  ddl_template: "CREATE INDEX CONCURRENTLY idx_{table_safe}_{timeCol}_range ON {table}(\"{timeCol}\");"
 expected_gain:
   kind: cost_delta
   source: estimate

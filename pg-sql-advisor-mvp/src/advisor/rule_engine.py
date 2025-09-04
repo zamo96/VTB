@@ -1,7 +1,94 @@
 # src/advisor/rule_engine.py
 from typing import Tuple, List, Dict, Any
 from src.models import AdviseInput
+# src/advisor/rule_engine.py
+from src.advisor.feature_normalizer import normalize_features
 import re
+
+try:
+    from pydantic import BaseModel as _PBase
+except Exception:
+    class _PBase:  # fallback если pydantic не импортируется здесь
+        pass
+
+def _to_dict(obj: Any) -> Dict[str, Any]:
+    if isinstance(obj, dict):
+        return obj
+    # pydantic v2
+    if isinstance(obj, _PBase) and hasattr(obj, "model_dump"):
+        return obj.model_dump(exclude_none=True)
+    # pydantic v1
+    if hasattr(obj, "dict"):
+        try:
+            return obj.dict(exclude_none=True)
+        except TypeError:
+            return obj.dict()
+    # dataclass
+    try:
+        import dataclasses
+        if dataclasses.is_dataclass(obj):
+            return dataclasses.asdict(obj)
+    except Exception:
+        pass
+    # generic
+    if hasattr(obj, "__dict__"):
+        return {k: v for k, v in vars(obj).items() if not k.startswith("_")}
+    return {}
+# -------------------------------------------------------------------------
+
+def _safe_name(s: str) -> str:
+    # в имени индекса точка/кавычки недопустимы
+    return re.sub(r'[^a-zA-Z0-9_]+', '_', s or 'obj')
+
+class _SafeDict(dict):
+    # не роняем движок, если в шаблоне есть необязательный плейсхолдер
+    def __missing__(self, key):
+        return '{' + key + '}'
+
+def _fmt_safe(tmpl: str, ph: Dict[str, Any]) -> str:
+    return tmpl.format_map(_SafeDict(ph))
+
+def _build_placeholders(feat: Dict[str, Any]) -> Dict[str, Any]:
+    feat = _to_dict(feat)
+    ph: Dict[str, Any] = {k: v for k, v in feat.items() if v is not None}
+
+    # table / schema / table_safe
+    table = ph.get("relation") or ph.get("table")
+    if table:
+        tbl = table.replace('"', '')
+        if '.' in tbl:
+            schema, name = tbl.split('.', 1)
+        else:
+            schema, name = 'public', tbl
+        ph.setdefault("schema", schema)
+        ph.setdefault("table_name", name)
+        ph.setdefault("table", f"{schema}.{name}")        # для DDL
+        ph.setdefault("table_safe", _safe_name(f"{schema}_{name}"))  # для имени индекса
+    else:
+        ph.setdefault("schema", "public")
+        ph.setdefault("table_name", "")
+        ph.setdefault("table", "")
+        ph.setdefault("table_safe", "tbl")
+
+    # унифицируем списки
+    if isinstance(ph.get("cols"), (list, tuple)):
+        ph["cols"] = ", ".join(ph["cols"])
+    if isinstance(ph.get("includeCols"), (list, tuple)):
+        ph["includeCols"] = ", ".join(ph["includeCols"])
+    if isinstance(ph.get("orderByCols"), (list, tuple)) and ph["orderByCols"] and isinstance(ph["orderByCols"][0], dict):
+        ph["orderByCols"] = ", ".join(
+            f'{c["name"]} {"DESC" if str(c.get("dir","")).upper().startswith("DESC") else "ASC"}'
+            for c in ph["orderByCols"]
+        )
+
+    # общий col, если его нет, но есть timeCol/fkCol
+    if "col" not in ph:
+        for k in ("timeCol", "fkCol", "column"):
+            if ph.get(k):
+                ph["col"] = ph[k]
+                break
+    return ph
+# --- end helpers ---
 
 def _norm_cols(val) -> List[str]:
     """
@@ -37,89 +124,17 @@ def _flat_for_idx(cols: List[str]) -> str:
         names.append(nm)
     return "_".join(names) if names else "col"
 
-def _render_action(rule: dict, feat: Any) -> Dict[str, Any]:
-    """
-    Поддержка action.* в YAML:
-      - ddl_template: str с плейсхолдерами
-          {table}, {col}, {cols}, {cols_flat},
-          {order_by_cols}, {order_by_cols_flat}, {include_cols}
-      - alter: str
-      - pre_sql: [строки] — префикс к DDL
-      - context:
-          table_from_feature: str (имя атрибута в feature)
-          col_from_feature: str | cols_from_feature: str
-          order_by_cols_from_feature: str
-          include_cols_from_feature: str
-          col_fallback: str | cols_fallback: [..]
-          include_cols_fallback: [..]
-          idx_template: "idx_{table}_{cols_flat}"
-    """
-    action = rule.get("action", {}) or {}
-    ctx = action.get("context", {}) or {}
-
-    # table
-    table_attr = ctx.get("table_from_feature", "relation")
-    table = getattr(feat, table_attr, None) or getattr(feat, "relation", None) or "public.unknown_table"
-    table_plain = table.split(".")[-1]
-
-    # основной список колонок (для {cols}, {cols_flat}, {col})
-    cols = []
-    if "cols_from_feature" in ctx:
-        cols = _norm_cols(getattr(feat, ctx["cols_from_feature"], None))
-    elif "col_from_feature" in ctx:
-        cols = _norm_cols(getattr(feat, ctx["col_from_feature"], None))
-    if not cols:
-        fb = ctx.get("cols_fallback")
-        if fb:
-            cols = _norm_cols(fb)
-        else:
-            col_fb = ctx.get("col_fallback")
-            cols = _norm_cols(col_fb) if col_fb else []
-
-    # order by cols (отдельная группа)
-    ob_cols = _norm_cols(getattr(feat, ctx.get("order_by_cols_from_feature", ""), None))
-
-    # include cols
-    include_cols = _norm_cols(getattr(feat, ctx.get("include_cols_from_feature", ""), None))
-    if not include_cols:
-        include_cols = _norm_cols(ctx.get("include_cols_fallback", []))
-
-    # индексное имя
-    idx_tpl = ctx.get("idx_template", "idx_{table}_{cols_flat}")
-    cols_flat = _flat_for_idx(cols) if cols else (_flat_for_idx(ob_cols) if ob_cols else "col")
-    ob_cols_flat = _flat_for_idx(ob_cols)
-    idx = idx_tpl.format(table=table_plain, col=cols_flat, cols_flat=cols_flat, order_by_cols_flat=ob_cols_flat)
-
-    # плейсхолдеры
-    ph: Dict[str, str] = {
-        "table": table,
-        "col": cols[0] if cols else "",
-        "cols": ", ".join(cols) if cols else "",
-        "cols_flat": cols_flat,
-        "order_by_cols": ", ".join(ob_cols) if ob_cols else "",
-        "order_by_cols_flat": ob_cols_flat,
-        "include_cols": ", ".join(include_cols) if include_cols else "",
-        "idx": idx,
-    }
-
-    # alter
-    if "alter" in action and action["alter"]:
-        return {"alter": action["alter"]}
-
-    # ddl (с возможным префиксом pre_sql)
-    if "ddl_template" in action and action["ddl_template"]:
-        ddl = action["ddl_template"].format(**ph)
-
-        # если в шаблоне было INCLUDE({include_cols}), но список пуст — удалим пустую секцию
-        if "{include_cols}" in action["ddl_template"] and not ph["include_cols"]:
-            ddl = re.sub(r"\s*INCLUDE\(\s*\)", "", ddl, flags=re.IGNORECASE)
-
-        pre = action.get("pre_sql") or []
-        if pre:
-            ddl = "; ".join([*pre, ddl])
-        return {"ddl": ddl}
-
-    return {}
+def _render_action(rule, feat):
+    action = rule.get("action") or {}
+    ph = _build_placeholders(feat)
+    res = {}
+    if "ddl_template" in action:
+        res["ddl"] = _fmt_safe(action["ddl_template"], ph)
+    if "alter" in action:
+        res["alter"] = _fmt_safe(action["alter"], ph)
+    if "rewrite_sql_hint" in action:
+        res["rewrite_sql_hint"] = _fmt_safe(action["rewrite_sql_hint"], ph)
+    return res
 
 def _match_rule_on_feature(rule: dict, feat: Any) -> bool:
     m = rule.get("match", {}) or {}
@@ -179,6 +194,16 @@ def _dedup_recommendations(recs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 def apply_rules(payload: AdviseInput, rules: List[dict]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    # Pydantic → dict
+    raw_feats = []
+    for f in (payload.features or []):
+        if isinstance(f, dict):
+            raw_feats.append(f)
+        else:
+            # pydantic v1/v2 совместимость
+            dump = getattr(f, "model_dump", None)
+            raw_feats.append(dump() if dump else f.dict())
+    #feats = normalize_features(raw_feats)
     feats = payload.features or []
     recommendations: List[Dict[str, Any]] = []
     contributions: List[Dict[str, Any]] = []
