@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:u2%40KAXU5@localhost:5432/telegram_bot")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://aldarbazarov:password@localhost:5432/vtb")
 
 # пул синхронный; будем вызывать из async через run_in_threadpool
 pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=5, kwargs={"autocommit": True})

@@ -1,0 +1,69 @@
+[
+  {
+    "id": "1",
+    "query": "SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id WHERE u.created_at > '2024-01-01' ORDER BY o.total DESC LIMIT 100;",
+    "created_date": "2025-04-05T10:30:00Z",
+    "estimated_cost": 45.67,
+    "execution_time": 180,
+    "complexity_score": 7,
+    "recommendations": [
+      {
+        "type": "critical",
+        "title": "Отсутствует индекс на поле created_at",
+        "description": "Добавьте индекс на поле users.created_at для ускорения фильтрации.",
+        "impact": "high"
+      },
+      {
+        "type": "optimization",
+        "title": "Оптимизация JOIN",
+        "description": "Рассмотрите возможность денормализации или кэширования агрегированных данных.",
+        "impact": "medium"
+      }
+    ],
+    "performance_insights": {
+      "scan_operations": [
+        "Sequential scan on users (cost=1000)",
+        "Index scan on orders via user_id"
+      ],
+      "index_usage": "Используется индекс orders_user_id_idx, но отсутствует индекс на users.created_at",
+      "join_operations": ["Nested Loop Join (users → orders)"],
+      "potential_bottlenecks": [
+        "Медленный фильтр по users.created_at без индекса",
+        "Большое количество строк после JOIN"
+      ]
+    },
+    "optimization_suggestions": [
+      {
+        "suggestion": "Добавить индекс на created_at",
+        "optimized_query": "CREATE INDEX CONCURRENTLY idx_users_created_at ON users(created_at);",
+        "expected_improvement": "Ускорение на 60%"
+      },
+      {
+        "suggestion": "Оптимизированный запрос с CTE",
+        "optimized_query": "WITH recent_users AS (SELECT id FROM users WHERE created_at > '2024-01-01') SELECT u.name, o.total FROM recent_users u JOIN orders o ON u.id = o.user_id ORDER BY o.total DESC LIMIT 100;",
+        "expected_improvement": "Снижение стоимости на 40%"
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "query": "SELECT COUNT(*), status FROM orders GROUP BY status;",
+    "created_date": "2025-04-04T15:20:00Z",
+    "estimated_cost": 12.34,
+    "execution_time": 45,
+    "complexity_score": 3,
+    "recommendations": [
+      {
+        "type": "info",
+        "title": "Запрос эффективен",
+        "description": "Запрос уже оптимизирован и не требует изменений.",
+        "impact": "low"
+      }
+    ],
+    "performance_insights": {
+      "scan_operations": ["Index-only scan on orders_status_idx"],
+      "index_usage": "Полностью покрывающий индекс orders_status_idx используется",
+      "potential_bottlenecks": []
+    }
+  }
+]
