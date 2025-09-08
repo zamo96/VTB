@@ -1,9 +1,13 @@
 # src/db/pg.py
-import os
 import json
 import pathlib
 from typing import Dict, Tuple
 from dotenv import load_dotenv
+import os, re, time
+from typing import Any, Dict, Optional
+from psycopg_pool import ConnectionPool
+from psycopg.rows import dict_row
+import psycopg  # psycopg3
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
@@ -19,7 +23,6 @@ except Exception:
 
 
 PG_ENV_KEYS = ("PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE", "PGSERVICE")
-
 
 def _clear_pg_env():
     """Убираем влияние libpq окружения на коннект."""
@@ -168,3 +171,46 @@ def explain_sql_sync(
                     return {"plan_text": "\n".join([
                         (r.get("QUERY PLAN") if isinstance(r, dict) else r[0]) for r in rows
                     ])}
+
+def test_conn_with_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Проверяет подключение к PostgreSQL по переданным параметрам и выполняет простой запрос.
+    Параметры: {host, port, database, user, password}
+    Возвращает мета-информацию о соединении при успехе, иначе кидает исключение.
+    """
+    conn_params = {
+        "host": params.get("host"),
+        "port": int(params.get("port", 5432)) if params.get("port") is not None else 5432,
+        "dbname": params.get("database"),
+        "user": params.get("user"),
+        "password": params.get("password"),
+    }
+
+    # Основное подключение (с переданным паролем)
+    conn = psycopg.connect(**conn_params, autocommit=True, row_factory=dict_row)
+    with conn, conn.cursor() as cur:
+        cur.execute("SELECT current_user AS current_user, current_database() AS db, version() AS version")
+        row = cur.fetchone()
+        base_info = {
+            "ok": True,
+            "current_user": row.get("current_user"),
+            "database": row.get("db"),
+            "version": row.get("version"),
+        }
+
+    # Негативная проверка: если подключение с заведомо неверным паролем тоже проходит,
+    # значит пароль фактически не требуется (например, trust/peer в pg_hba.conf)
+    auth_requires_password = True
+    try:
+        wrong_params = dict(conn_params)
+        wrong_params["password"] = (str(conn_params.get("password") or "") + "_wrong_" + os.urandom(4).hex())
+        c2 = psycopg.connect(**wrong_params, autocommit=True, row_factory=dict_row)
+        c2.close()
+        auth_requires_password = False
+    except Exception:
+        auth_requires_password = True
+
+    base_info["auth_requires_password"] = auth_requires_password
+    if not auth_requires_password:
+        base_info["note"] = "Подключение успешно даже с неверным паролем: вероятно trust/peer-авторизация."
+    return base_info

@@ -1,4 +1,3 @@
-# src/app.py
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
@@ -11,8 +10,8 @@ from src.advisor.rule_engine import apply_rules
 from src.advisor.risk_score import aggregate_score
 from src.advisor.explainer import render_report
 from src.advisor.rules_loader import load_rules
-
 from src.db.pg import run_sql_sync, explain_sql_sync
+from src.db.pg import test_conn_with_params
 from src.analyzer.extract import plan_to_features
 from src.advisor.feature_normalizer import normalize_features
 from src.presentation.formatter import format_adviser_human
@@ -21,6 +20,21 @@ from src.presentation.formatter import format_adviser_human
 app = FastAPI(title="PG SQL Advisor (MVP)")
 rules = load_rules()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+logger = logging.getLogger("pg_sql_advisor")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 @app.get("/health")
 def health():
@@ -370,3 +384,37 @@ class ExplainerOut(BaseModel):
 def debug_explainer(payload: ExplainerIn):
     md = render_report(payload.recommendations, payload.risk, payload.payload)
     return {"explain_md": md}
+
+class DbTestInput(BaseModel):
+    host: str
+    port: int
+    database: str
+    user: str
+    password: str
+
+
+@app.post("/api/settings/db/test")
+async def settings_db_test(payload: DbTestInput):
+    try:
+        logger.info(
+            "DB test request: host=%s port=%s db=%s user=%s password=%s",
+            payload.host, payload.port, payload.database, payload.user, "***" if payload.password else "",
+        )
+        res = await run_in_threadpool(
+            test_conn_with_params,
+            {
+                "host": payload.host,
+                "port": payload.port,
+                "database": payload.database,
+                "user": payload.user,
+                "password": payload.password,
+            },
+        )
+        logger.info(
+            "DB test success: user=%s db=%s",
+            res.get("current_user"), res.get("database"),
+        )
+        return res
+    except Exception as e:
+        logger.exception("DB test failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))

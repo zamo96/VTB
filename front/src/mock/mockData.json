@@ -1,0 +1,55 @@
+{
+    "text": "### Итог\n- Риск: **🟠 Warning (40/100)**\n- Драйверы: R_CAST_PREVENTS_INDEX, R_RANGE_TIME_QUERY\n- Confidence factor: 1.0\n\n### Рекомендации (по приоритету)\n- Функция на колонке мешает индексу: переписать фильтр\n  - Почему: nodeId: 1300800, relation: public.rental\n  - Что сделать: Переписать WHERE без to_char(): \"rental_date\" >= DATE '{fromDate}' AND \"rental_date\" < DATE '{toDate_next}'\n  - DDL: `CREATE INDEX CONCURRENTLY idx_\"rental\"_rental_date_ts ON rental(\"rental_date\");`\n    • rollback: `DROP INDEX CONCURRENTLY idx_\"rental\"_rental_date_ts;`\n    • после создания: выполнить ANALYZE\n  - Как это поможет: тип: index_usage_enable; оценка: heuristic\n  - вложение: low; уверенность: high\n- Диапазон по времени: добавить индекс по времени (возможен составной)\n  - Почему: nodeId: 1300800, relation: public.rental\n  - DDL: `CREATE INDEX CONCURRENTLY idx_\"rental\"_rental_date_range ON rental(\"rental_date\");`\n    • rollback: `DROP INDEX CONCURRENTLY idx_\"rental\"_rental_date_range;`\n    • после создания: выполнить ANALYZE\n  - Как это поможет: тип: cost_delta; оценка: estimate\n  - вложение: low; уверенность: medium\n",
+    "risk": {
+        "score": 40,
+        "severity": "warning",
+        "drivers": ["R_CAST_PREVENTS_INDEX", "R_RANGE_TIME_QUERY"],
+        "confidence_factor": 1.0
+    },
+    "recommendations": [{
+        "id": "REC_R_CAST_PREVENTS_INDEX_1300800",
+        "rule_id": "R_CAST_PREVENTS_INDEX",
+        "type": "sql_rewrite",
+        "title": "Функция на колонке мешает индексу: переписать фильтр",
+        "action": {
+            "ddl": "CREATE INDEX CONCURRENTLY idx_\"rental\"_rental_date_ts ON rental(\"rental_date\");",
+            "rewrite_sql_hint": "Переписать WHERE без to_char(): \"rental_date\" >= DATE '{fromDate}' AND \"rental_date\" < DATE '{toDate_next}'"
+        },
+        "expected_gain": {
+            "kind": "index_usage_enable",
+            "value": null,
+            "source": "heuristic"
+        },
+        "effort": "low",
+        "confidence": "high",
+        "evidence": [{
+            "nodeId": 1300800,
+            "relation": "public.rental",
+            "selectivity": null,
+            "memEstMB": null,
+            "workMemMB": null
+        }]
+    }, {
+        "id": "REC_R_RANGE_TIME_QUERY_1300800",
+        "rule_id": "R_RANGE_TIME_QUERY",
+        "type": "index",
+        "title": "Диапазон по времени: добавить индекс по времени (возможен составной)",
+        "action": {
+            "ddl": "CREATE INDEX CONCURRENTLY idx_\"rental\"_rental_date_range ON rental(\"rental_date\");"
+        },
+        "expected_gain": {
+            "kind": "cost_delta",
+            "value": null,
+            "source": "estimate"
+        },
+        "effort": "low",
+        "confidence": "medium",
+        "evidence": [{
+            "nodeId": 1300800,
+            "relation": "public.rental",
+            "selectivity": null,
+            "memEstMB": null,
+            "workMemMB": null
+        }]
+    }]
+}
