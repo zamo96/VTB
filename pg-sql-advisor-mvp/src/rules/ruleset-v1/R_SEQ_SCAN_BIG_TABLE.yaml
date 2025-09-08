@@ -1,19 +1,18 @@
+# src/rules/ruleset-v1/R_SEQ_SCAN_BIG_TABLE.yaml
 id: R_SEQ_SCAN_BIG_TABLE
 type: index
-title: "Индекс для селективного фильтра на {table}({cols})"
+title: "Последовательное сканирование большой таблицы"
 match:
   feature: seq_scan_big_table
-  selectivity_lt: 0.10
 action:
-  ddl_template: "CREATE INDEX CONCURRENTLY {idx} ON {table}({cols});"
-  context:
-    cols_from_feature: filterCols     # ожидается список колонок в предикате; если нет — fallback
-    cols_fallback: ["created_at"]     # простая эвристика на MVP
-    idx_template: "idx_{table}_{cols_flat}"
-risk:
-  base: 40
-effort: low
-confidence: high
+  rewrite_sql_hint: >
+    Рассмотрите ограничивающее условие (WHERE) или индекс по селективной колонке.
+    Если это аналитика по всей таблице — подумайте о партиционировании, материализации,
+    или хранении агрегатов.
 expected_gain:
-  kind: cost_delta
-  source: estimate
+  kind: io_reduction
+  source: heuristic
+risk:
+  base: 10
+effort: low
+confidence: low

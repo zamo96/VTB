@@ -1,0 +1,17 @@
+id: R_ORDER_BY_RANDOM
+type: sql_rewrite
+title: "ORDER BY random(): избегать полной сортировки"
+match:
+  feature: order_by_random
+action:
+  rewrite_sql_hint: >
+    Для выборки случайных строк используйте TABLESAMPLE (SYSTEM/BERNOULLI) или tsm_system_rows,
+    либо аппроксимации с рандомным OFFSET по PK. Пример:
+    SELECT ... FROM {table} TABLESAMPLE BERNOULLI(1) WHERE ... LIMIT N;
+expected_gain:
+  kind: cpu_sort_drop
+  source: heuristic
+risk:
+  base: 20
+effort: low
+confidence: medium

@@ -59,3 +59,6 @@
 - window_no_partition_index
 - exists_rewrite_possible
 - offset_pagination_slow
+- order_by_random
+- modulo_filter
+- filter_on_expression

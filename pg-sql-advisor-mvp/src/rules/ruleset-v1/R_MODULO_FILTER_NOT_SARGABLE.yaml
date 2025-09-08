@@ -1,0 +1,16 @@
+id: R_MODULO_FILTER
+type: sql_rewrite
+title: "Фильтр по модулю: низкая селективность"
+match:
+  feature: modulo_filter
+action:
+  rewrite_sql_hint: >
+    Условия вида `id % N = K` плохо индексируются; рассмотрите альтернативную стратегию выборки:
+    диапазоны по первичному ключу/времени, sampling (TABLESAMPLE), либо денормализацию/материализацию.
+expected_gain:
+  kind: cost_delta
+  source: heuristic
+risk:
+  base: 10
+effort: low
+confidence: medium

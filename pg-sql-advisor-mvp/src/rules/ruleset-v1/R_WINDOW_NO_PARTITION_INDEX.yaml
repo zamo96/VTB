@@ -1,0 +1,16 @@
+id: R_WINDOW_NO_PARTITION
+type: sql_rewrite
+title: "Оконная функция без PARTITION BY"
+match:
+  feature: window_no_partition_index
+action:
+  rewrite_sql_hint: >
+    Рассмотрите PARTITION BY, чтобы ограничить объём данных в окнах и снизить нагрузку.
+    Также проверьте ORDER BY в окне — иногда помогает покрывающий индекс.
+expected_gain:
+  kind: cpu_reduction
+  source: heuristic
+risk:
+  base: 10
+effort: low
+confidence: medium
