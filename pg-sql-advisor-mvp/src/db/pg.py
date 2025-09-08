@@ -3,6 +3,7 @@ import os, re, time
 from typing import Any, Dict, Optional
 from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
+import psycopg  # psycopg3
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://aldarbazarov:password@localhost:5432/vtb")
 
@@ -80,33 +81,17 @@ def test_conn_with_params(params: Dict[str, Any]) -> Dict[str, Any]:
         "password": params.get("password"),
     }
 
-    _clear_pg_env()
-
     # Основное подключение (с переданным паролем)
-    if _IS_PSYCOPG3:
-        conn = psycopg.connect(**conn_params, autocommit=True, row_factory=dict_row)
-        with conn, conn.cursor() as cur:
-            cur.execute("SELECT current_user AS current_user, current_database() AS db, version() AS version")
-            row = cur.fetchone()
-            base_info = {
-                "ok": True,
-                "current_user": row.get("current_user"),
-                "database": row.get("db"),
-                "version": row.get("version"),
-            }
-    else:
-        conn = psycopg.connect(**conn_params)
-        conn.autocommit = True
-        with conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT current_user AS current_user, current_database() AS db, version() AS version")
-                row = cur.fetchone()
-                base_info = {
-                    "ok": True,
-                    "current_user": row.get("current_user"),
-                    "database": row.get("db"),
-                    "version": row.get("version"),
-                }
+    conn = psycopg.connect(**conn_params, autocommit=True, row_factory=dict_row)
+    with conn, conn.cursor() as cur:
+        cur.execute("SELECT current_user AS current_user, current_database() AS db, version() AS version")
+        row = cur.fetchone()
+        base_info = {
+            "ok": True,
+            "current_user": row.get("current_user"),
+            "database": row.get("db"),
+            "version": row.get("version"),
+        }
 
     # Негативная проверка: если подключение с заведомо неверным паролем тоже проходит,
     # значит пароль фактически не требуется (например, trust/peer в pg_hba.conf)
@@ -114,14 +99,9 @@ def test_conn_with_params(params: Dict[str, Any]) -> Dict[str, Any]:
     try:
         wrong_params = dict(conn_params)
         wrong_params["password"] = (str(conn_params.get("password") or "") + "_wrong_" + os.urandom(4).hex())
-        if _IS_PSYCOPG3:
-            c2 = psycopg.connect(**wrong_params, autocommit=True, row_factory=dict_row)
-            c2.close()
-            auth_requires_password = False
-        else:
-            c2 = psycopg.connect(**wrong_params)
-            c2.close()
-            auth_requires_password = False
+        c2 = psycopg.connect(**wrong_params, autocommit=True, row_factory=dict_row)
+        c2.close()
+        auth_requires_password = False
     except Exception:
         auth_requires_password = True
 

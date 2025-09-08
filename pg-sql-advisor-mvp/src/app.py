@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from src.models import AdviseInput, AdviseResponse
 from src.advisor.rule_engine import apply_rules
 from src.advisor.risk_score import aggregate_score
@@ -8,12 +9,31 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from typing import Any, List, Optional, Dict
+import logging
 from src.db.pg import run_sql_sync, explain_sql_sync
 from src.db.pg import test_conn_with_params
 from src.analyzer.extract import plan_to_features
 
 app = FastAPI(title="PG SQL Advisor (MVP)")
 rules = load_rules()
+
+# CORS: разрешить для всех источников
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Console logger
+logger = logging.getLogger("pg_sql_advisor")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 @app.get("/health")
 def health():
@@ -163,6 +183,10 @@ class DbTestInput(BaseModel):
 @app.post("/api/settings/db/test")
 async def settings_db_test(payload: DbTestInput):
     try:
+        logger.info(
+            "DB test request: host=%s port=%s db=%s user=%s password=%s",
+            payload.host, payload.port, payload.database, payload.user, "***" if payload.password else "",
+        )
         res = await run_in_threadpool(
             test_conn_with_params,
             {
@@ -173,5 +197,11 @@ async def settings_db_test(payload: DbTestInput):
                 "password": payload.password,
             },
         )
+        logger.info(
+            "DB test success: user=%s db=%s",
+            res.get("current_user"), res.get("database"),
+        )
+        return res
     except Exception as e:
+        logger.exception("DB test failed: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
