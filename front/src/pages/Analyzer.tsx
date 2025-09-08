@@ -17,6 +17,21 @@ export default function AnalyzerPage() {
   const [error, setError] = useState<string | null>(null);
 
   const analyzeQuery = async () => {
+    const savedSettingsRaw = localStorage.getItem('dbSettings');
+    if (!savedSettingsRaw) {
+      setError('Сначала заполните настройки подключения в разделе Настройки.');
+      return;
+    }
+
+    let dbSettings: unknown;
+    try {
+      dbSettings = JSON.parse(savedSettingsRaw);
+      console.log(dbSettings);
+    } catch {
+      setError('Настройки подключения повреждены. Пересохраните их в разделе Настройки.');
+      return;
+    }
+
     if (!query.trim()) {
       setError('Введите SQL-запрос для анализа');
       return;
@@ -26,6 +41,11 @@ export default function AnalyzerPage() {
     setError(null);
 
     try {
+      // const resp = await fetch('/api/analyze', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ query, db: dbSettings })
+      // });
       await new Promise(resolve => setTimeout(resolve, 1500));
       const result = mockAnalysisResult(query);
 

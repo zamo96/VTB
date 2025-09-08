@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { DatabaseOutlined, HistoryOutlined } from '@ant-design/icons';
+import { SettingOutlined } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
 import Title from 'antd/es/typography/Title';
 
@@ -15,6 +16,11 @@ const navigationItems = [
     title: 'История',
     url: '/history',
     icon: <HistoryOutlined />,
+  },
+  {
+    title: 'Настройки',
+    url: '/settings',
+    icon: <SettingOutlined />,
   },
 ];
 

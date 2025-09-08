@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from typing import Any, List, Optional, Dict
 from src.db.pg import run_sql_sync, explain_sql_sync
+from src.db.pg import test_conn_with_params
 from src.analyzer.extract import plan_to_features
 
 app = FastAPI(title="PG SQL Advisor (MVP)")
@@ -149,3 +150,28 @@ class ExplainerOut(BaseModel):
 def debug_explainer(payload: ExplainerIn):
     md = render_report(payload.recommendations, payload.risk, payload.payload)
     return {"explain_md": md}
+
+# ---------- Settings: тест подключения к БД ----------
+class DbTestInput(BaseModel):
+    host: str
+    port: int
+    database: str
+    user: str
+    password: str
+
+
+@app.post("/api/settings/db/test")
+async def settings_db_test(payload: DbTestInput):
+    try:
+        res = await run_in_threadpool(
+            test_conn_with_params,
+            {
+                "host": payload.host,
+                "port": payload.port,
+                "database": payload.database,
+                "user": payload.user,
+                "password": payload.password,
+            },
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
