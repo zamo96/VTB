@@ -37,9 +37,9 @@ def _pg_conn_params() -> Dict:
     return dict(
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),
-        dbname=os.getenv("DB_NAME", "pagila"),
+        dbname=os.getenv("DB_NAME", "postgres"),
         user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", "u2@KAXU5"),
+        password=os.getenv("DB_PASSWORD", "123456"),
     )
 
 

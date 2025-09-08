@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 from src.db.pg import _conn_source  # вверху
 from typing import Any, List, Optional, Dict, Set
 import re
+import logging
 
 from src.models import AdviseInput, AdviseResponse
 from src.advisor.rule_engine import apply_rules

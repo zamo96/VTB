@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import QueryEditor from '../components/analyzer/QueryEditor';
 
-import mockData from '../mock/mockData.json';
+// mockData import removed; using real API call instead
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -67,8 +67,24 @@ export default function AnalyzerPage() {
     setError(null);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setResult(mockData as MockResponse);
+      const response = await fetch(
+        'http://127.0.0.1:8000/advise/sql?out_format=md&verbosity=full&include_plan=false&include_features=false',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ sql: query, analyze: false }),
+        }
+      );
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText || `HTTP ${response.status}`);
+      }
+
+      const data = (await response.json()) as MockResponse;
+      setResult(data);
     } catch (err) {
       console.error('Ошибка анализа:', err);
       setError('Произошла ошибка при анализе запроса. Попробуйте еще раз.');
