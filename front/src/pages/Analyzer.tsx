@@ -1,19 +1,45 @@
 import { useState } from 'react';
 
 import QueryEditor from '../components/analyzer/QueryEditor';
-import AnalysisResults from '../components/analyzer/AnalysisResults';
-import OptimizationSuggestions from '../components/analyzer/OptimizationSuggestions';
 
-import { mockAnalysisResult } from '../mock/mockAnalysisResult';
-import mockAnalyses from '../mock/mockAnalyses.json';
-import type { Analysis } from '../components/analyzer/types';
+import mockData from '../mock/mockData.json';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+type MockRecommendation = {
+  id: string;
+  rule_id: string;
+  type: string;
+  title: string;
+  action?: {
+    ddl?: string;
+    rewrite_sql_hint?: string;
+  };
+  expected_gain?: {
+    kind: string;
+    value: number | null;
+    source: string;
+  };
+  effort?: string;
+  confidence?: string;
+  evidence?: Array<Record<string, unknown>>;
+};
+
+type MockResponse = {
+  text: string;
+  risk: {
+    score: number;
+    severity: string;
+    drivers: string[];
+    confidence_factor: number;
+  };
+  recommendations: MockRecommendation[];
+};
 
 export default function AnalyzerPage() {
   const [query, setQuery] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [result, setResult] = useState<MockResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const analyzeQuery = async () => {
@@ -41,23 +67,8 @@ export default function AnalyzerPage() {
     setError(null);
 
     try {
-      // const resp = await fetch('/api/analyze', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ query, db: dbSettings })
-      // });
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const result = mockAnalysisResult(query);
-
-      const newAnalysis: Analysis = {
-        id: generateId(),
-        created_date: new Date().toISOString(),
-        ...result,
-      };
-
-      (mockAnalyses as Analysis[]).unshift(newAnalysis);
-
-      setAnalysis(newAnalysis);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setResult(mockData as MockResponse);
     } catch (err) {
       console.error('Ошибка анализа:', err);
       setError('Произошла ошибка при анализе запроса. Попробуйте еще раз.');
@@ -111,10 +122,116 @@ export default function AnalyzerPage() {
               {error}
             </div>
           )}
-          {analysis && (
+          {result && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <AnalysisResults analysis={analysis} />
-              <OptimizationSuggestions suggestions={analysis.optimization_suggestions} />
+              <div className="glass-effect border border-slate-600" style={{ backgroundColor: 'rgba(30,41,59,0.5)', padding: '16px', borderRadius: 8 }}>
+                <div style={{ color: '#e2e8f0' }}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({ node, ...props }) => (
+                        <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '16px 0' }} {...props} />
+                      ),
+                      h2: ({ node, ...props }) => (
+                        <h2 style={{ fontSize: '24px', fontWeight: 700, margin: '14px 0' }} {...props} />
+                      ),
+                      h3: ({ node, ...props }) => (
+                        <h3 style={{ fontSize: '20px', fontWeight: 700, margin: '12px 0' }} {...props} />
+                      ),
+                      p: ({ node, ...props }) => (
+                        <p style={{ margin: '8px 0', lineHeight: 1.6 }} {...props} />
+                      ),
+                      ul: ({ node, ...props }) => (
+                        <ul style={{ listStyleType: 'disc', paddingLeft: '20px', margin: '8px 0' }} {...props} />
+                      ),
+                      ol: ({ node, ...props }) => (
+                        <ol style={{ listStyleType: 'decimal', paddingLeft: '20px', margin: '8px 0' }} {...props} />
+                      ),
+                      li: ({ node, ...props }) => (
+                        <li style={{ margin: '4px 0' }} {...props} />
+                      ),
+                      code: ({ node, inline, className, children, ...props }: any) => (
+                        inline ? (
+                          <code
+                            style={{
+                              background: '#1e293b',
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              border: '1px solid #334155',
+                              color: '#a7f3d0',
+                            }}
+                            {...props}
+                          >
+                            {children}
+                          </code>
+                        ) : (
+                          <code
+                            style={{
+                              display: 'block',
+                              whiteSpace: 'pre-wrap',
+                              background: '#0b1220',
+                              padding: 12,
+                              borderRadius: 6,
+                              border: '1px solid #334155',
+                              color: '#e2e8f0',
+                            }}
+                            {...props}
+                          >
+                            {children}
+                          </code>
+                        )
+                      ),
+                    }}
+                  >
+                    {result.text}
+                  </ReactMarkdown>
+                </div>
+              </div>
+
+              <div className="glass-effect border border-slate-600" style={{ backgroundColor: 'rgba(30,41,59,0.5)', padding: '16px', borderRadius: 8 }}>
+                <h3 style={{ color: '#e2e8f0', marginTop: 0 }}>Риск</h3>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: '#cbd5e1' }}>
+                  <div>Оценка: <strong style={{ color: '#e2e8f0' }}>{result.risk.score}</strong></div>
+                  <div>Уровень: <strong style={{ color: '#e2e8f0' }}>{result.risk.severity}</strong></div>
+                  <div>Уверенность: <strong style={{ color: '#e2e8f0' }}>{result.risk.confidence_factor}</strong></div>
+                </div>
+                {result.risk.drivers?.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ color: '#94a3b8', marginBottom: 4 }}>Драйверы:</div>
+                    <ul>
+                      {result.risk.drivers.map(d => (
+                        <li key={d} style={{ color: '#e2e8f0' }}>{d}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {result.recommendations?.length > 0 && (
+                <div className="glass-effect border border-slate-600" style={{ backgroundColor: 'rgba(30,41,59,0.5)', padding: '16px', borderRadius: 8 }}>
+                  <h3 style={{ color: '#e2e8f0', marginTop: 0 }}>Рекомендации ({result.recommendations.length})</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {result.recommendations.map((rec) => (
+                      <div key={rec.id} style={{ border: '1px solid #334155', borderRadius: 6, padding: 12, background: 'rgba(15,23,42,0.4)' }}>
+                        <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{rec.title}</div>
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>Тип: {rec.type} · Правило: {rec.rule_id}</div>
+                        {rec.action?.rewrite_sql_hint && (
+                          <div style={{ marginTop: 8 }}>
+                            <div style={{ color: '#94a3b8', fontSize: 12 }}>Подсказка по переписыванию:</div>
+                            <pre style={{ background: '#1e293b', color: '#e2e8f0', padding: 8, borderRadius: 4, border: '1px solid #334155', whiteSpace: 'pre-wrap' }}>{rec.action.rewrite_sql_hint}</pre>
+                          </div>
+                        )}
+                        {rec.action?.ddl && (
+                          <div style={{ marginTop: 8 }}>
+                            <div style={{ color: '#94a3b8', fontSize: 12 }}>DDL:</div>
+                            <pre style={{ background: '#1e293b', color: '#a7f3d0', padding: 8, borderRadius: 4, border: '1px solid #334155', whiteSpace: 'pre-wrap' }}>{rec.action.ddl}</pre>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
