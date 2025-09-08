@@ -12,11 +12,11 @@ const navigationItems = [
     url: '/analyzer',
     icon: <DatabaseOutlined />,
   },
-  {
-    title: 'История',
-    url: '/history',
-    icon: <HistoryOutlined />,
-  },
+  // {
+  //   title: 'История',
+  //   url: '/history',
+  //   icon: <HistoryOutlined />,
+  // },
   {
     title: 'Настройки',
     url: '/settings',
